@@ -1,4 +1,4 @@
-# 🚀 V2Ray 静态住宅 IP 中转一键脚本
+# 🚀  静态住宅 IP 中转一键脚本
 
 ![Ubuntu](https://img.shields.io/badge/OS-Ubuntu%2022.04-orange?logo=ubuntu)
 ![License](https://img.shields.io/badge/License-MIT-blue)
