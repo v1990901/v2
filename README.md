@@ -11,7 +11,7 @@
 ```bash
 bash <(curl -sL [https://raw.githubusercontent.com/v1990901/v2/main/v2ray_relay.sh](https://raw.githubusercontent.com/v1990901/v2/main/v2ray_relay.sh))
 
-
+```
 🛠️ 核心准备工作
 在使用脚本之前，请确保完成以下两个关键步骤：
 
