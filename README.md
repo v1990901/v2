@@ -27,7 +27,7 @@
 
 ```bash
 bash <(curl -sL [https://raw.githubusercontent.com/v1990901/v2/main/v2ray_relay.sh](https://raw.githubusercontent.com/v1990901/v2/main/v2ray_relay.sh))
-
+```
 ---
 
 ## ⚙️ 阿里云后台配置 (至关重要)
