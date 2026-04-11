@@ -1,8 +1,3 @@
-为了配合你最新的防封旗舰版脚本，我为你编写了这份完整、专业的 `README.md`。它不仅包含了安装命令，还深度集成了 **DNS 安全校验**、**随机 UUID 说明**、**自适应二维码引导**以及你的**专属推广链接**。
-
-你可以直接点击下方代码框右上角的“复制”，然后覆盖到 GitHub 中。
-
-```markdown
 # 🚀 工业级防封静态住宅 IP 中转一键脚本
 
 ![Ubuntu](https://img.shields.io/badge/OS-Ubuntu%2022.04-orange?logo=ubuntu)
@@ -33,7 +28,6 @@
 
 ```bash
 bash <(curl -sL [https://raw.githubusercontent.com/v1990901/v2/main/v2ray_relay.sh](https://raw.githubusercontent.com/v1990901/v2/main/v2ray_relay.sh))
-```
 
 ---
 
