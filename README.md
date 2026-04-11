@@ -27,8 +27,9 @@
 在您的服务器终端执行以下一键安装命令。脚本已适配自适应二维码显示及灵活 UUID 配置。
 
 ```bash
-bash <(curl -sL (https://raw.githubusercontent.com/v1990901/v2/main/v2ray_relay_260411.sh))
+bash <(curl -sL https://raw.githubusercontent.com/v1990901/v2/main/v2ray_relay_260411.sh)
 ```
+
 ---
 
 ## ✨ 脚本高级特性
