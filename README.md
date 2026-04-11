@@ -28,7 +28,7 @@
 
 ```bash
 bash <(curl -sL [https://raw.githubusercontent.com/v1990901/v2/main/v2ray_relay.sh](https://raw.githubusercontent.com/v1990901/v2/main/v2ray_relay.sh))
-
+```
 ---
 
 ## ✨ 脚本高级特性
@@ -83,4 +83,4 @@ bash <(curl -sL [https://raw.githubusercontent.com/v1990901/v2/main/v2ray_relay.
 
 ### ⚖️ 免责声明
 本脚本仅供学习交流及正当跨境贸易业务使用，请务必在遵守当地法律法规的前提下使用。
-```
+
