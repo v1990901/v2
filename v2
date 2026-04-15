@@ -1,0 +1,135 @@
+cat << 'EOF' > v2.sh
+#!/bin/bash
+
+# =================================================================
+# 脚本名称：Gemini 矩阵管理 v6.0 (2026 稳定版)
+# 核心逻辑：VMess(WS) -> 泰国住宅 ISP (Socks5 出口)
+# 修复记录：修复 jq 空变量报错、清理特殊字符、增加输入校验
+# =================================================================
+
+# 颜色定义
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+NC='\033[0m'
+CONFIG_FILE="/usr/local/etc/v2ray/config.json"
+
+# --- 1. 系统优化与环境初始化 ---
+function init_system() {
+    echo -e "${YELLOW}正在优化系统内核并安装依赖...${NC}"
+    # 开启 BBR
+    if ! sysctl net.core.default_qdisc | grep -q "fq" ; then
+        echo "net.core.default_qdisc=fq" >> /etc/sysctl.conf
+        echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf
+        sysctl -p > /dev/null 2>&1
+    fi
+    # 安装依赖
+    apt-get update -y && apt-get install -y jq qrencode curl base64 uuid-runtime
+    # 安装 V2Ray 核心
+    if ! command -v v2ray &> /dev/null; then
+        echo -e "${YELLOW}正在安装 V2Ray 核心...${NC}"
+        bash <(curl -L https://raw.githubusercontent.com/v2fly/fbt-install/master/install.sh)
+        systemctl enable v2ray && systemctl start v2ray
+    fi
+    # 初始化基础 JSON
+    if [ ! -f "$CONFIG_FILE" ]; then
+        mkdir -p /usr/local/etc/v2ray
+        echo '{"log":{"loglevel":"warning"},"dns":{"servers":["1.1.1.1","8.8.8.8"]},"inbounds":[],"outbounds":[{"protocol":"freedom","tag":"direct"}],"routing":{"rules":[]}}' > $CONFIG_FILE
+    fi
+}
+
+# --- 2. 显示连接信息与二维码 ---
+function show_access_info() {
+    local port=$1; local uuid=$2; local remarks=$3
+    local ip=$(curl -s ifconfig.me)
+    # 生成 VMess 标准 JSON
+    local v_json=$(cat <<EOD
+{"v":"2","ps":"$remarks","add":"$ip","port":"$port","id":"$uuid","aid":"0","net":"ws","type":"none","host":"","path":"/th-relay","tls":""}
+EOD
+)
+    local link="vmess://$(echo -n "$v_json" | base64 -w 0)"
+    echo -e "\n${GREEN}========= 泰国原生环境配置成功 =========${NC}"
+    echo -e "${GREEN}备注名称: ${NC}$remarks"
+    echo -e "${GREEN}中转地址: ${NC}$ip"
+    echo -e "${GREEN}中转端口: ${NC}$port"
+    echo -e "${GREEN}VMess 链接: ${NC}$link"
+    echo -e "${GREEN}请使用小火箭(Shadowrocket)或 V2RayN 扫码:${NC}"
+    qrencode -t ansiutf8 "$link"
+    echo -e "${GREEN}========================================${NC}"
+}
+
+# --- 3. 添加新落地 (核心逻辑) ---
+function add_relay() {
+    echo -e "${YELLOW}--- 开始配置泰国 AIS 住宅中转 ---${NC}"
+    
+    # 强制要求输入端口，直到输入正确为止
+    local l_port=""
+    while [[ ! "$l_port" =~ ^[0-9]+$ ]]; do
+        read -p "请输入本次配置的本地端口 (例如 50100): " l_port
+        if [[ ! "$l_port" =~ ^[0-9]+$ ]]; then
+            echo -e "${RED}错误：端口必须是纯数字，请重新输入！${NC}"
+        fi
+    done
+
+    # 预设您提供的泰国 IP 信息
+    read -p "落地 Host [112.143.3.164]: " r_host
+    r_host=${r_host:-"112.143.3.164"}
+    read -p "落地 Port [50101]: " r_port
+    r_port=${r_port:-50101}
+    read -p "落地 User [gbalm123]: " r_user
+    r_user=${r_user:-"gbalm123"}
+    read -p "落地 Pass [Pud9bikqoz]: " r_pass
+    r_pass=${r_pass:-"Pud9bikqoz"}
+    read -p "备注名称 [Thai_AIS_$l_port]: " remarks
+    remarks=${remarks:-"Thai_AIS_$l_port"}
+
+    uuid=$(uuidgen)
+    tag="relay_$l_port"
+
+    echo -e "${YELLOW}正在写入配置并重启服务...${NC}"
+
+    # 写入 Inbound (WS 协议)
+    jq ".inbounds += [{\"port\": $l_port, \"protocol\": \"vmess\", \"settings\": {\"clients\": [{\"id\": \"$uuid\"}]}, \"tag\": \"in-$tag\", \"streamSettings\": {\"network\": \"ws\", \"wsSettings\": {\"path\": \"/th-relay\"}}}]" $CONFIG_FILE > tmp.json && mv tmp.json $CONFIG_FILE
+    
+    # 写入 Outbound (Socks5 落地)
+    jq ".outbounds += [{\"protocol\": \"socks\", \"settings\": {\"servers\": [{\"address\": \"$r_host\", \"port\": $r_port, \"users\": [{\"user\": \"$r_user\", \"pass\": \"$r_pass\"}]}]}, \"tag\": \"out-$tag\"}]" $CONFIG_FILE > tmp.json && mv tmp.json $CONFIG_FILE
+    
+    # 写入 Routing (定向转发)
+    jq ".routing.rules += [{\"type\": \"field\", \"inboundTag\": [\"in-$tag\"], \"outboundTag\": \"out-$tag\"}]" $CONFIG_FILE > tmp.json && mv tmp.json $CONFIG_FILE
+
+    # 开启防火墙端口
+    iptables -I INPUT -p tcp --dport $l_port -j ACCEPT > /dev/null 2>&1
+    
+    systemctl restart v2ray
+    show_access_info "$l_port" "$uuid" "$remarks"
+}
+
+# --- 4. 主菜单 ---
+init_system
+while true; do
+    echo -e "\n${YELLOW}Gemini 矩阵管理 v6.0 (泰国原生 IP 优化版)${NC}"
+    echo "1) 添加泰国 AIS 落地 (自动填充信息)"
+    echo "2) 查看当前已开端口"
+    echo "3) 重置所有配置"
+    echo "4) 退出"
+    read -p "请选择 [1-4]: " opt
+    case $opt in
+        1) add_relay ;;
+        2) 
+           if [ -f "$CONFIG_FILE" ]; then
+               jq -r '.inbounds[] | "端口: \(.port) \t 标签: \(.tag)"' $CONFIG_FILE
+           else
+               echo "配置文件不存在"
+           fi
+           ;;
+        3) 
+           rm -f $CONFIG_FILE && init_system && systemctl restart v2ray
+           echo -e "${GREEN}配置已完全重置${NC}"
+           ;;
+        4) exit 0 ;;
+        *) echo "无效选项" ;;
+    esac
+done
+EOF
+chmod +x v2.sh
+./v2.sh
