@@ -102,7 +102,7 @@ systemctl daemon-reload && systemctl enable v2ray && systemctl restart v2ray
 # 6. 生成链接与自适应二维码
 MY_IP=$(curl -s http://checkip.amazonaws.com)
 VMESS_CONF=$(cat <<VMJSON
-{ "v": "2", "ps": "Safe_US_Relay", "add": "$MY_IP", "port": "$ALIYUN_PORT", "id": "$UUID", "aid": "0", "net": "tcp", "type": "none", "host": "", "path": "", "tls": "" }
+{ "v": "2", "ps": "Safe_Relay", "add": "$MY_IP", "port": "$ALIYUN_PORT", "id": "$UUID", "aid": "0", "net": "tcp", "type": "none", "host": "", "path": "", "tls": "" }
 VMJSON
 )
 VMESS_LINK="vmess://$(echo -n "$VMESS_CONF" | base64 -w 0)"
