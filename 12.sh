@@ -11,7 +11,7 @@ apt-get update && apt-get install -y curl qrencode jq || yum install -y curl qre
 
 # 2. 参数定义
 UUID=$(cat /proc/sys/kernel/random/uuid)
-PORT=443
+PORT=54321
 IP=$(curl -s https://api.ipify.org)
 REMARKS="Douyin_Live_Accelerator"
 CONF_PATH="/usr/local/etc/v2ray/config.json"
