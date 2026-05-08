@@ -1,8 +1,7 @@
 #!/bin/bash
 
 # ====================================================
-# V2Ray 社媒矩阵管理脚本 V7 (最终修复版)
-# 功能：BBR加速 / 多落地隔离 / 防DNS泄露 / 备注管理 / 交互增删
+# V2Ray 社媒矩阵管理脚本 V9 (镜像加速修复版)
 # ====================================================
 
 red='\033[0;31m'
@@ -12,12 +11,12 @@ plain='\033[0m'
 
 CONFIG_FILE="/usr/local/etc/v2ray/config.json"
 
-# 权限检查
-[[ $EUID -ne 0 ]] && echo -e "${red}错误：${plain}必须使用 root 用户运行！" && exit 1
+# 权限自检
+[[ $EUID -ne 0 ]] && echo -e "${red}错误：请以 root 权限运行！${plain}" && exit 1
 
-# 1. 系统环境与加速优化
+# 1. 环境安装与加速
 prepare_env() {
-    echo -e "${green}正在配置系统环境...${plain}"
+    echo -e "${green}正在安装系统依赖...${plain}"
     apt-get update && apt-get install -y curl wget unzip coreutils base64 python3
     
     # 开启内核 BBR 加速
@@ -26,20 +25,31 @@ prepare_env() {
         echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf
         echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
         sysctl -p > /dev/null 2>&1
-        echo -e "${green}BBR 加速已开启。${plain}"
     fi
 
-    # 核心安装逻辑：解决 service not found 问题
+    # 核心安装：尝试官方源和镜像源
     if ! command -v v2ray &> /dev/null; then
-        echo -e "${yellow}未检测到 V2Ray 核心，正在尝试安装...${plain}"
-        bash <(curl -L https://raw.githubusercontent.com/v2fly/fclones/main/install-release.sh)
+        echo -e "${yellow}正在通过镜像加速下载 V2Ray 核心...${plain}"
+        bash <(curl -L https://mirror.ghproxy.com/https://raw.githubusercontent.com/v2fly/fclones/main/install-release.sh)
     fi
 
-    # 再次检查服务状态
+    # 手动补偿：解决 Unit not found 问题
     if [ ! -f /etc/systemd/system/v2ray.service ]; then
-        echo -e "${red}安装失败：无法创建服务文件。尝试备用安装方式...${plain}"
-        # 强制手动创建服务链接（针对某些 Ubuntu 版本）
-        ln -s /usr/local/lib/systemd/system/v2ray.service /etc/systemd/system/v2ray.service 2>/dev/null
+        echo -e "${yellow}手动修复服务映射...${plain}"
+        cat <<EOF >/etc/systemd/system/v2ray.service
+[Unit]
+Description=V2Ray Service
+After=network.target nss-lookup.target
+
+[Service]
+User=root
+ExecStart=/usr/local/bin/v2ray run -c /usr/local/etc/v2ray/config.json
+Restart=on-failure
+RestartPreventExitStatus=23
+
+[Install]
+WantedBy=multi-user.target
+EOF
     fi
 
     systemctl daemon-reload
@@ -47,68 +57,38 @@ prepare_env() {
     systemctl restart v2ray
     
     if systemctl is-active --quiet v2ray; then
-        echo -e "${green}V2Ray 服务已正常启动！${plain}"
+        echo -e "${green}V2Ray 服务已成功激活并运行！${plain}"
     else
-        echo -e "${red}警告：V2Ray 服务仍未启动，请检查防火墙或网络连接。${plain}"
+        echo -e "${red}错误：核心启动失败，请检查端口是否冲突。${plain}"
     fi
 }
 
-# 2. 查看节点列表
-list_nodes() {
-    if [ ! -f $CONFIG_FILE ] || [ ! -s $CONFIG_FILE ]; then
-        echo -e "${yellow}当前没有任何节点配置。${plain}"
-        return 1
-    fi
-    echo -e "\n${yellow}--- 当前运行节点列表 ---${plain}"
-    echo -e "---------------------------------------------------------------"
-    printf "%-10s | %-20s | %-15s\n" "端口" "节点备注" "落地出口IP"
-    echo -e "---------------------------------------------------------------"
-    python3 -c "
-import json
-try:
-    with open('$CONFIG_FILE', 'r') as f:
-        data = json.load(f)
-    for ib in data.get('inbounds', []):
-        port = ib['port']
-        tag = ib['tag'].replace('in_', '')
-        r_ip = 'Unknown'
-        for ob in data.get('outbounds', []):
-            if ob.get('tag') == tag:
-                r_ip = ob.get('settings', {}).get('servers', [{}])[0].get('address', 'Unknown')
-        print(f'{port: <10} | 矩阵节点_{port: <13} | {r_ip:<15}')
-except Exception as e:
-    print('解析错误:', e)
-"
-    echo -e "---------------------------------------------------------------\n"
-}
-
-# 3. 增加节点
+# 2. 增加节点
 add_node() {
-    # 如果文件不存在，初始化基础 JSON 结构
     if [ ! -f $CONFIG_FILE ] || [ ! -s $CONFIG_FILE ]; then
         mkdir -p /usr/local/etc/v2ray
         echo '{"inbounds":[],"outbounds":[{"tag":"direct","protocol":"freedom"}],"routing":{"rules":[]}}' > $CONFIG_FILE
     fi
 
-    echo -e "\n${yellow}请输入新节点信息：${plain}"
-    read -p "1. 节点备注 (如 韩国TK01): " ps
-    read -p "2. 中转端口 (如 10001): " l_port
-    read -p "3. 落地代理IP: " r_ip
-    read -p "4. 落地代理端口: " r_port
+    echo -e "\n${yellow}--- 添加新节点 (社媒矩阵专用) ---${plain}"
+    read -p "1. 节点备注 (如: 美国TK01): " ps
+    read -p "2. 中转监听端口 (如: 10001): " l_port
+    read -p "3. 落地IP (Socks5): " r_ip
+    read -p "4. 落地端口: " r_port
     read -p "5. Socks5 账号: " s_user
     read -p "6. Socks5 密码: " s_pass
     
     uuid=$(cat /proc/sys/kernel/random/uuid)
     tag="tag_$l_port"
 
-    # 构建配置 (强制开启 sniffing 和 routeOnly 防止 DNS 泄露)
+    # 构建配置 (开启嗅探防止DNS泄露 & TCP Fast Open)
     NEW_IN=$(printf '{"tag":"in_%s","port":%s,"protocol":"vmess","settings":{"clients":[{"id":"%s"}]},"sniffing":{"enabled":true,"destOverride":["http","tls"],"routeOnly":true},"streamSettings":{"sockopt":{"tcpFastOpen":true}}}' "$tag" "$l_port" "$uuid")
     NEW_OUT=$(printf '{"tag":"%s","protocol":"socks","settings":{"servers":[{"address":"%s","port":%s,"users":[{"user":"%s","pass":"%s"}]}]},"streamSettings":{"sockopt":{"tcpFastOpen":true}}}' "$tag" "$r_ip" "$r_port" "$s_user" "$s_pass")
     NEW_RULE=$(printf '{"type":"field","inboundTag":["in_%s"],"outboundTag":"%s"}' "$tag" "$tag")
 
-    # 利用 Python 安全写入
+    # Python 安全写入
     python3 -c "
-import json, sys
+import json
 with open('$CONFIG_FILE', 'r') as f:
     data = json.load(f)
 data['inbounds'].append($NEW_IN)
@@ -119,57 +99,71 @@ with open('$CONFIG_FILE', 'w') as f:
 "
     systemctl restart v2ray
     
-    # 生成链接与二维码
     my_ip=$(curl -s http://checkip.amazonaws.com)
     vm_json=$(printf '{"v":"2","ps":"%s","add":"%s","port":"%s","id":"%s","aid":"0","net":"tcp","type":"none"}' "$ps" "$my_ip" "$l_port" "$uuid")
     link="vmess://$(echo -n "$vm_json" | base64 | tr -d '\n')"
     qr_url="https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=$link"
     
-    echo -e "\n${green}✅ 节点已成功上线！${plain}"
-    echo -e "节点链接: ${yellow}$link${plain}"
+    echo -e "\n${green}✅ 配置成功！${plain}"
+    echo -e "VMess 链接: ${yellow}$link${plain}"
     echo -e "二维码查看: ${yellow}$qr_url${plain}\n"
+}
+
+# 3. 查看节点列表
+list_nodes() {
+    if [ ! -f $CONFIG_FILE ]; then echo -e "${red}暂无配置。${plain}"; return 1; fi
+    echo -e "\n${yellow}--- 运行中的端口列表 ---${plain}"
+    echo -e "---------------------------------------------------------------"
+    printf "%-10s | %-20s | %-15s\n" "端口" "类型" "落地出口IP"
+    echo -e "---------------------------------------------------------------"
+    python3 -c "
+import json
+data = json.load(open('$CONFIG_FILE'))
+for ib in data.get('inbounds', []):
+    port = ib['port']
+    tag = ib['tag'].replace('in_', '')
+    r_ip = 'Unknown'
+    for ob in data.get('outbounds', []):
+        if ob.get('tag') == tag:
+            r_ip = ob.get('settings', {}).get('servers', [{}])[0].get('address', 'Unknown')
+    print(f'{port: <10} | 矩阵隔离节点         | {r_ip:<15}')
+"
 }
 
 # 4. 删除节点
 delete_node() {
     list_nodes || return
-    read -p "请输入要删除的 [中转端口]: " del_port
-    [[ -z "$del_port" ]] && return
-
+    read -p "请输入要删除的 [端口号]: " del_port
     python3 -c "
 import json
 with open('$CONFIG_FILE', 'r') as f:
     data = json.load(f)
-tag = 'tag_' + '$del_port'
-in_tag = 'in_' + tag
+t = 'tag_' + '$del_port'; it = 'in_' + t
 data['inbounds'] = [i for i in data['inbounds'] if i['port'] != int('$del_port')]
-data['outbounds'] = [o for o in data['outbounds'] if o.get('tag') != tag]
-data['routing']['rules'] = [r for r in data['routing']['rules'] if in_tag not in r.get('inboundTag', [])]
+data['outbounds'] = [o for o in data['outbounds'] if o.get('tag') != t]
+data['routing']['rules'] = [r for r in data['routing']['rules'] if it not in r.get('inboundTag', [])]
 with open('$CONFIG_FILE', 'w') as f:
     json.dump(data, f, indent=2)
 "
     systemctl restart v2ray
-    echo -e "${green}✅ 节点 $del_port 已移除。${plain}"
+    echo -e "${green}✅ 节点已成功移除。${plain}"
 }
 
-# 5. 主循环菜单
+# 主菜单
 while true; do
-    echo -e "
-  ${green}V2Ray 矩阵加速管理系统 (最终修复版)${plain}
-  ---------------------------
-  ${green}1.${plain} 安装/修复环境 (含开启加速)
-  ${green}2.${plain} 增加节点 (支持备注/二维码/防检测)
-  ${green}3.${plain} 查看当前节点列表
-  ${green}4.${plain} 删除指定节点
-  ${green}0.${plain} 退出脚本
-  ---------------------------"
-    read -p "选择操作: " opt
+    echo -e "\n${green}V2Ray 矩阵管理系统 V9${plain}"
+    echo "---------------------------"
+    echo "1. 开启环境与加速 (核心安装)"
+    echo "2. 增加落地节点 (备注/二维码)"
+    echo "3. 查看节点列表"
+    echo "4. 删除指定节点"
+    echo "0. 退出"
+    read -p "请选择: " opt
     case $opt in
         1) prepare_env ;;
         2) add_node ;;
         3) list_nodes ;;
         4) delete_node ;;
         0) exit 0 ;;
-        *) echo "无效输入" ;;
     esac
 done
