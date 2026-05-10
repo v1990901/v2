@@ -10,7 +10,8 @@
 
 1. **注册阿里云**
    访问 [阿里云官网](https://www.aliyun.com/minisite/goods?userCode=ou12hhzv) 进行注册。
-   ![图1-跳转注册页面](图1_注册页面.png)
+   ![图1-跳转注册页面](<img width="553" height="263" alt="image" src="https://github.com/user-attachments/assets/0939fca9-6368-4477-85e7-1b792fc54903" />
+)
 
 2. **登录账号**
    使用手机号加验证码，或使用支付宝/淘宝扫码快捷登录。
