@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ====================================================
-# V2Ray 社媒矩阵管理脚本 V9 (智能健壮容错版)
+# V2Ray 社媒矩阵管理脚本 V9 (无缝导入+强开Root权限版)
 # ====================================================
 
 red='\033[0;31m'
@@ -91,10 +91,9 @@ prepare_env() {
     # 确保配置目录存在
     mkdir -p /usr/local/etc/v2ray
 
-    # 手动补偿：解决 Unit not found 问题
-    if [ ! -f /etc/systemd/system/v2ray.service ]; then
-        echo -e "${yellow}手动创建服务文件...${plain}"
-        cat > /etc/systemd/system/v2ray.service <<EOF
+    # 【核心修正】彻底干掉原本包裹的 if 判断，每次强行覆盖重写服务文件，根除 nobody 权限报警隐患
+    echo -e "${yellow}正在配置/刷新系统服务文件 (强开 Root 权限)...${plain}"
+    cat > /etc/systemd/system/v2ray.service <<EOF
 [Unit]
 Description=V2Ray Service
 Documentation=https://www.v2fly.org/
@@ -112,8 +111,7 @@ RestartPreventExitStatus=23
 [Install]
 WantedBy=multi-user.target
 EOF
-        echo -e "${green}服务服务文件创建成功。${plain}"
-    fi
+    echo -e "${green}服务服务文件配置完成。${plain}"
 
     systemctl daemon-reload
     systemctl enable v2ray
@@ -213,7 +211,9 @@ print('配置写入成功')
     sleep 1
 
     my_ip=$(curl -s --max-time 5 http://checkip.amazonaws.com || curl -s --max-time 5 https://api.ipify.org)
-    vm_json=$(printf '{"v":"2","ps":"%s","add":"%s","port":"%s","id":"%s","aid":"0","net":"tcp","type":"none"}' "$ps" "$my_ip" "$l_port" "$uuid")
+    
+    # 【核心修正】将 "port":"%s" 改为 "port":%s 转化为标准整型输出，确保手机电脑端软件 100% 成功识别导入
+    vm_json=$(printf '{"v":"2","ps":"%s","add":"%s","port":%s,"id":"%s","aid":"0","net":"tcp","type":"none"}' "$ps" "$my_ip" "$l_port" "$uuid")
     link="vmess://$(echo -n "$vm_json" | base64 | tr -d '\n')"
     qr_url="https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$link'))")"
     
